@@ -69,3 +69,17 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .shadow-glow-cyan {
+    box-shadow: var(--glow-cyan);
+  }
+  
+  .shadow-glow-purple {
+    box-shadow: var(--glow-purple);
+  }
+  
+  .shadow-glow-pink {
+    box-shadow: var(--glow-pink);
+  }
+}

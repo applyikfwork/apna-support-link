@@ -33,6 +33,7 @@ export default function AdminDashboard({ user }: { user: User }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [content, setContent] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showFileUpload, setShowFileUpload] = useState(false);
 
   // Load all user profiles
@@ -148,13 +149,26 @@ export default function AdminDashboard({ user }: { user: User }) {
     if (!selectedUserId) return;
 
     setUploading(true);
+    setUploadProgress(0);
+    
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `admin/${selectedUserId}/${Date.now()}.${fileExt}`;
 
+      // Simulate progress for better UX
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) return prev;
+          return prev + 10;
+        });
+      }, 200);
+
       const { error: uploadError } = await supabase.storage
         .from("chat-uploads")
         .upload(fileName, file);
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
 
       if (uploadError) throw uploadError;
 
@@ -169,8 +183,10 @@ export default function AdminDashboard({ user }: { user: User }) {
 
       toast.success("File uploaded successfully");
       setShowFileUpload(false);
+      setUploadProgress(0);
     } catch (error: any) {
       toast.error("Failed to upload file");
+      setUploadProgress(0);
     } finally {
       setUploading(false);
     }
@@ -293,14 +309,21 @@ export default function AdminDashboard({ user }: { user: User }) {
 
             {/* File Upload Modal */}
             {showFileUpload && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-card rounded-xl p-6 max-w-md w-full border-2 border-primary/20 shadow-glow-cyan">
-                  <h3 className="text-lg font-semibold mb-4">Upload File</h3>
-                  <FileUploader onUpload={handleFileUpload} uploading={uploading} />
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+                <div className="bg-card rounded-xl p-6 max-w-md w-full border-2 border-primary/20 shadow-glow-cyan animate-scale-in">
+                  <h3 className="text-lg font-semibold mb-4 bg-gradient-gaming bg-clip-text text-transparent">
+                    Upload File
+                  </h3>
+                  <FileUploader 
+                    onUpload={handleFileUpload} 
+                    uploading={uploading}
+                    uploadProgress={uploadProgress}
+                  />
                   <Button
                     variant="outline"
-                    className="w-full mt-4"
-                    onClick={() => setShowFileUpload(false)}
+                    className="w-full mt-4 border-primary/30 hover:bg-primary/10"
+                    onClick={() => !uploading && setShowFileUpload(false)}
+                    disabled={uploading}
                   >
                     Cancel
                   </Button>
