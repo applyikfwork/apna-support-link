@@ -152,6 +152,8 @@ export default function AdminDashboard({ user }: { user: User }) {
     setUploadProgress(0);
     
     try {
+      console.log('Admin starting file upload:', file.name, file.type, file.size);
+      
       const fileExt = file.name.split(".").pop();
       // Upload to user's folder so they can view it
       const fileName = `${selectedUserId}/${Date.now()}.${fileExt}`;
@@ -161,36 +163,50 @@ export default function AdminDashboard({ user }: { user: User }) {
         setUploadProgress((prev) => Math.min(prev + 10, 85));
       }, 150);
 
-      const { error: uploadError } = await supabase.storage
+      console.log('Admin uploading to storage:', fileName);
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from("chat-uploads")
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       clearInterval(progressInterval);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Admin storage upload error:', uploadError);
+        throw uploadError;
+      }
 
+      console.log('Admin storage upload successful:', uploadData);
       setUploadProgress(90);
 
-      const { error: insertError } = await supabase.from("messages").insert({
+      console.log('Admin inserting message record');
+      const { data: insertData, error: insertError } = await supabase.from("messages").insert({
         user_id: selectedUserId,
         sender: "admin",
         file_path: fileName,
         file_type: file.type,
-      });
+      }).select();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('Admin message insert error:', insertError);
+        throw insertError;
+      }
 
+      console.log('Admin message insert successful:', insertData);
       setUploadProgress(100);
       toast.success("File uploaded successfully");
       
       setTimeout(() => {
         setShowFileUpload(false);
         setUploadProgress(0);
-      }, 500);
+        setUploading(false);
+      }, 1000);
     } catch (error: any) {
-      toast.error("Failed to upload file");
+      console.error('Admin upload failed:', error);
+      toast.error(error.message || "Failed to upload file");
       setUploadProgress(0);
-    } finally {
       setUploading(false);
     }
   };
