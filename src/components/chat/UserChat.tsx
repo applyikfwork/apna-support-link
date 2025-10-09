@@ -124,20 +124,18 @@ export default function UserChat({ user }: { user: User }) {
 
       // Simulate progress for better UX (Supabase doesn't provide upload progress)
       const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) return prev;
-          return prev + 10;
-        });
-      }, 200);
+        setUploadProgress((prev) => Math.min(prev + 10, 85));
+      }, 150);
 
       const { error: uploadError } = await supabase.storage
         .from("chat-uploads")
         .upload(fileName, file);
 
       clearInterval(progressInterval);
-      setUploadProgress(100);
 
       if (uploadError) throw uploadError;
+
+      setUploadProgress(90);
 
       const { error: insertError } = await supabase.from("messages").insert({
         user_id: user.id,
@@ -148,9 +146,13 @@ export default function UserChat({ user }: { user: User }) {
 
       if (insertError) throw insertError;
 
+      setUploadProgress(100);
       toast.success("File uploaded successfully");
-      setShowFileUpload(false);
-      setUploadProgress(0);
+      
+      setTimeout(() => {
+        setShowFileUpload(false);
+        setUploadProgress(0);
+      }, 500);
     } catch (error: any) {
       toast.error("Failed to upload file");
       setUploadProgress(0);

@@ -15,20 +15,20 @@ export default function Chat() {
   useEffect(() => {
     // Check authentication
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!user) {
+      if (!session?.user) {
         navigate("/auth");
         return;
       }
 
-      setUser(user);
+      setUser(session.user);
 
       // Check if user is admin
       const { data: profile } = await supabase
         .from("profiles")
         .select("is_admin")
-        .eq("id", user.id)
+        .eq("id", session.user.id)
         .single();
 
       setIsAdmin(profile?.is_admin || false);
