@@ -11,23 +11,54 @@ export default function FileAttachment({
   fileType: string | null;
 }) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const getSignedUrl = async () => {
-      const { data, error } = await supabase.storage
-        .from("chat-uploads")
-        .createSignedUrl(filePath, 3600); // 1 hour expiry
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const { data, error: urlError } = await supabase.storage
+          .from("chat-uploads")
+          .createSignedUrl(filePath, 3600); // 1 hour expiry
 
-      if (!error && data) {
-        setSignedUrl(data.signedUrl);
+        if (urlError) {
+          console.error("Error getting signed URL:", urlError);
+          setError("Failed to load file");
+          return;
+        }
+
+        if (data) {
+          setSignedUrl(data.signedUrl);
+        }
+      } catch (err) {
+        console.error("Error in getSignedUrl:", err);
+        setError("Failed to load file");
+      } finally {
+        setLoading(false);
       }
     };
 
     getSignedUrl();
   }, [filePath]);
 
-  if (!signedUrl) {
-    return <div className="text-xs text-muted-foreground">Loading file...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground p-2">
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+        Loading file...
+      </div>
+    );
+  }
+
+  if (error || !signedUrl) {
+    return (
+      <div className="text-xs text-destructive bg-destructive/10 p-2 rounded">
+        {error || "File not available"}
+      </div>
+    );
   }
 
   const isImage = fileType?.startsWith("image/");

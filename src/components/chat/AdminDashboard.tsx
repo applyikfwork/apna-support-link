@@ -153,7 +153,8 @@ export default function AdminDashboard({ user }: { user: User }) {
     
     try {
       const fileExt = file.name.split(".").pop();
-      const fileName = `admin/${selectedUserId}/${Date.now()}.${fileExt}`;
+      // Upload to user's folder so they can view it
+      const fileName = `${selectedUserId}/${Date.now()}.${fileExt}`;
 
       // Simulate progress for better UX
       const progressInterval = setInterval(() => {
