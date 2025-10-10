@@ -146,29 +146,44 @@ export default function AdminDashboard({ user }: { user: User }) {
     const file = e.target.files?.[0];
     if (!file || !selectedUserId) return;
 
+    console.log('Admin file selected:', file.name, file.type, file.size);
     const loadingToast = toast.loading(`Uploading ${file.name}...`);
     
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${selectedUserId}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
+      console.log('Admin uploading to storage:', fileName);
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from("chat-uploads")
         .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+      console.log('Admin upload response:', { uploadData, uploadError });
 
-      const { error: insertError } = await supabase.from("messages").insert({
+      if (uploadError) {
+        console.error('Admin storage upload failed:', uploadError);
+        throw uploadError;
+      }
+
+      console.log('Admin inserting message record');
+      const { data: messageData, error: insertError } = await supabase.from("messages").insert({
         user_id: selectedUserId,
         sender: "admin",
         file_path: fileName,
         file_type: file.type,
-      });
+      }).select();
 
-      if (insertError) throw insertError;
+      console.log('Admin message insert response:', { messageData, insertError });
 
+      if (insertError) {
+        console.error('Admin message insert failed:', insertError);
+        throw insertError;
+      }
+
+      console.log('Admin upload successful!');
       toast.success("File sent successfully", { id: loadingToast });
     } catch (error: any) {
+      console.error('Admin upload error:', error);
       toast.error(error.message || "Failed to upload file", { id: loadingToast });
     }
 

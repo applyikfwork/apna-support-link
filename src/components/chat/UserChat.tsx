@@ -115,29 +115,44 @@ export default function UserChat({ user }: { user: User }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    console.log('File selected:', file.name, file.type, file.size);
     const loadingToast = toast.loading(`Uploading ${file.name}...`);
     
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
+      
+      console.log('Uploading to storage:', fileName);
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from("chat-uploads")
         .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+      console.log('Upload response:', { uploadData, uploadError });
 
-      const { error: insertError } = await supabase.from("messages").insert({
+      if (uploadError) {
+        console.error('Storage upload failed:', uploadError);
+        throw uploadError;
+      }
+
+      console.log('Inserting message record');
+      const { data: messageData, error: insertError } = await supabase.from("messages").insert({
         user_id: user.id,
         sender: "user",
         file_path: fileName,
         file_type: file.type,
-      });
+      }).select();
 
-      if (insertError) throw insertError;
+      console.log('Message insert response:', { messageData, insertError });
 
+      if (insertError) {
+        console.error('Message insert failed:', insertError);
+        throw insertError;
+      }
+
+      console.log('Upload successful!');
       toast.success("File sent successfully", { id: loadingToast });
     } catch (error: any) {
+      console.error('Upload error:', error);
       toast.error(error.message || "Failed to upload file", { id: loadingToast });
     }
 
