@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { LogOut, Send, Paperclip, Gamepad2 } from "lucide-react";
 import { toast } from "sonner";
 import MessageBubble from "./MessageBubble";
-import FileUploader from "./FileUploader";
 
 interface Message {
   id: string;
@@ -22,10 +21,8 @@ interface Message {
 export default function UserChat({ user }: { user: User }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [content, setContent] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [showFileUpload, setShowFileUpload] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Update last_online periodically
   useEffect(() => {
@@ -114,66 +111,39 @@ export default function UserChat({ user }: { user: User }) {
     }
   };
 
-  const handleFileUpload = async (file: File) => {
-    setUploading(true);
-    setUploadProgress(0);
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const loadingToast = toast.loading(`Uploading ${file.name}...`);
     
     try {
-      console.log('Starting file upload:', file.name, file.type, file.size);
-      
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      // Simulate progress for better UX (Supabase doesn't provide upload progress)
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => Math.min(prev + 10, 85));
-      }, 150);
-
-      console.log('Uploading to storage:', fileName);
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("chat-uploads")
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+        .upload(fileName, file);
 
-      clearInterval(progressInterval);
+      if (uploadError) throw uploadError;
 
-      if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        throw uploadError;
-      }
-
-      console.log('Storage upload successful:', uploadData);
-      setUploadProgress(90);
-
-      console.log('Inserting message record');
-      const { data: insertData, error: insertError } = await supabase.from("messages").insert({
+      const { error: insertError } = await supabase.from("messages").insert({
         user_id: user.id,
         sender: "user",
         file_path: fileName,
         file_type: file.type,
-      }).select();
+      });
 
-      if (insertError) {
-        console.error('Message insert error:', insertError);
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
-      console.log('Message insert successful:', insertData);
-      setUploadProgress(100);
-      toast.success("File uploaded successfully");
-      
-      setTimeout(() => {
-        setShowFileUpload(false);
-        setUploadProgress(0);
-        setUploading(false);
-      }, 1000);
+      toast.success("File sent successfully", { id: loadingToast });
     } catch (error: any) {
-      console.error('Upload failed:', error);
-      toast.error(error.message || "Failed to upload file");
-      setUploadProgress(0);
-      setUploading(false);
+      toast.error(error.message || "Failed to upload file", { id: loadingToast });
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -217,37 +187,20 @@ export default function UserChat({ user }: { user: User }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* File Upload Modal */}
-      {showFileUpload && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-card rounded-xl p-6 max-w-md w-full border-2 border-primary/20 shadow-glow-cyan animate-scale-in">
-            <h3 className="text-lg font-semibold mb-4 bg-gradient-gaming bg-clip-text text-transparent">
-              Upload File
-            </h3>
-            <FileUploader 
-              onUpload={handleFileUpload} 
-              uploading={uploading}
-              uploadProgress={uploadProgress}
-            />
-            <Button
-              variant="outline"
-              className="w-full mt-4 border-primary/30 hover:bg-primary/10"
-              onClick={() => !uploading && setShowFileUpload(false)}
-              disabled={uploading}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="bg-card border-t-2 border-primary/20 p-4">
         <div className="container mx-auto flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            accept="image/*,video/*,.pdf,.doc,.docx"
+            className="hidden"
+          />
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setShowFileUpload(true)}
+            onClick={() => fileInputRef.current?.click()}
             className="border-primary/50 hover:bg-primary/10 hover:border-primary"
           >
             <Paperclip className="w-5 h-5" />

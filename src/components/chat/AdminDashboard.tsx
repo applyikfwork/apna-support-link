@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { LogOut, Send, Paperclip, CheckCheck, Gamepad2 } from "lucide-react";
 import { toast } from "sonner";
 import MessageBubble from "./MessageBubble";
-import FileUploader from "./FileUploader";
 import { formatDistanceToNow } from "date-fns";
 
 interface Profile {
@@ -32,9 +31,7 @@ export default function AdminDashboard({ user }: { user: User }) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [content, setContent] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [showFileUpload, setShowFileUpload] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load all user profiles
   useEffect(() => {
@@ -145,69 +142,39 @@ export default function AdminDashboard({ user }: { user: User }) {
     }
   };
 
-  const handleFileUpload = async (file: File) => {
-    if (!selectedUserId) return;
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedUserId) return;
 
-    setUploading(true);
-    setUploadProgress(0);
+    const loadingToast = toast.loading(`Uploading ${file.name}...`);
     
     try {
-      console.log('Admin starting file upload:', file.name, file.type, file.size);
-      
       const fileExt = file.name.split(".").pop();
-      // Upload to user's folder so they can view it
       const fileName = `${selectedUserId}/${Date.now()}.${fileExt}`;
 
-      // Simulate progress for better UX
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => Math.min(prev + 10, 85));
-      }, 150);
-
-      console.log('Admin uploading to storage:', fileName);
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from("chat-uploads")
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+        .upload(fileName, file);
 
-      clearInterval(progressInterval);
+      if (uploadError) throw uploadError;
 
-      if (uploadError) {
-        console.error('Admin storage upload error:', uploadError);
-        throw uploadError;
-      }
-
-      console.log('Admin storage upload successful:', uploadData);
-      setUploadProgress(90);
-
-      console.log('Admin inserting message record');
-      const { data: insertData, error: insertError } = await supabase.from("messages").insert({
+      const { error: insertError } = await supabase.from("messages").insert({
         user_id: selectedUserId,
         sender: "admin",
         file_path: fileName,
         file_type: file.type,
-      }).select();
+      });
 
-      if (insertError) {
-        console.error('Admin message insert error:', insertError);
-        throw insertError;
-      }
+      if (insertError) throw insertError;
 
-      console.log('Admin message insert successful:', insertData);
-      setUploadProgress(100);
-      toast.success("File uploaded successfully");
-      
-      setTimeout(() => {
-        setShowFileUpload(false);
-        setUploadProgress(0);
-        setUploading(false);
-      }, 1000);
+      toast.success("File sent successfully", { id: loadingToast });
     } catch (error: any) {
-      console.error('Admin upload failed:', error);
-      toast.error(error.message || "Failed to upload file");
-      setUploadProgress(0);
-      setUploading(false);
+      toast.error(error.message || "Failed to upload file", { id: loadingToast });
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
@@ -326,37 +293,20 @@ export default function AdminDashboard({ user }: { user: User }) {
               ))}
             </div>
 
-            {/* File Upload Modal */}
-            {showFileUpload && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-                <div className="bg-card rounded-xl p-6 max-w-md w-full border-2 border-primary/20 shadow-glow-cyan animate-scale-in">
-                  <h3 className="text-lg font-semibold mb-4 bg-gradient-gaming bg-clip-text text-transparent">
-                    Upload File
-                  </h3>
-                  <FileUploader 
-                    onUpload={handleFileUpload} 
-                    uploading={uploading}
-                    uploadProgress={uploadProgress}
-                  />
-                  <Button
-                    variant="outline"
-                    className="w-full mt-4 border-primary/30 hover:bg-primary/10"
-                    onClick={() => !uploading && setShowFileUpload(false)}
-                    disabled={uploading}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {/* Input */}
             <div className="bg-card border-t-2 border-primary/20 p-4">
               <div className="flex gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileSelect}
+                  accept="image/*,video/*,.pdf,.doc,.docx"
+                  className="hidden"
+                />
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setShowFileUpload(true)}
+                  onClick={() => fileInputRef.current?.click()}
                   className="border-primary/50 hover:bg-primary/10 hover:border-primary"
                 >
                   <Paperclip className="w-5 h-5" />
